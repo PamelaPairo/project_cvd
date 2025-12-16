@@ -122,7 +122,7 @@ ggplot(pie_data, aes(x = "", y = percentage, fill = gender)) +
 
 ## Height
 
-Hay una cuestion con la altura que se registraron alturas de pacientes menores a 1m, lo cual es extraño. Se van a eliminar los datos de pacientes menores a 1m.
+Several implausible height values (below 1 meter) were detected, likely due to data recording errors. To ensure data quality and analytical validity, these observations were excluded from the dataset.
 
 ```{r}
 df %>% filter (height > 100 & height < 200)
@@ -136,21 +136,33 @@ ggplot(df %>% filter (height > 100 & height < 200), aes(x=height)) +
 
 ## Diastolic and Sistolic Blood Pressure
 
-Por otro lado, respecto a la presion sistólica hay valores negativos y valores extremos para la vida humana. Dado esto y como en este caso no se puede consultar quien/quienes tomaron los datos, se decide eliminarlos del dataset.
+Additionally, several issues were identified in the blood pressure variables. The systolic blood pressure variable contained negative values as well as extreme measurements that are not compatible with human life. Since it was not possible to verify how these measurements were recorded, such observations were treated as data entry errors and removed from the dataset.
 
-Valores de presión sistólica y diastólica que no son compatibles con la vida:
+Based on clinical plausibility criteria, blood pressure values outside physiologically realistic ranges were excluded from the analysis:
 
-- Presión sistólica: > 190 mmHg o < 90 mmHg.
-- Presión diastólica: > 150 mmHg o < 40 mmHg.
+Systolic blood pressure: values below 90 mmHg or above 190 mmHg.
 
-A continuación se muestran los datos que se eliminaron.
+Diastolic blood pressure: values below 40 mmHg or above 150 mmHg.
+
+In addition, a physiological consistency check was applied to ensure that systolic blood pressure was greater than diastolic blood pressure. Records violating this condition were also excluded.
+
+The observations removed as a result of these criteria are presented below.
 
 ```{r}
 df %>% filter (ap_hi > 190 | ap_hi < 90 | ap_lo > 150 | ap_lo < 40)
 ```
 
 
+```{r}
+ggplot (df %>% filter (ap_hi >= 90 & ap_hi <= 190,       
+               ap_lo >= 40 & ap_lo <= 150,       
+               ap_hi > ap_lo), aes(x=ap_hi))+geom_histogram(binwidth = 10)
+```
+
+
 ## Weight
+
+Consistent with the findings for `height` , `weight` contained implausible values. Joint inspection of height and weight revealed observations corresponding to individuals taller than 1.6 meters with body weights below 45 kg, a combination indicative of severe malnutrition. Given the study focus on cardiovascular disease detection, such cases were considered outside the target population and were removed from the dataset.
 
 ```{r}
 ggplot(df %>% filter (weight > 35), aes(x=weight)) +

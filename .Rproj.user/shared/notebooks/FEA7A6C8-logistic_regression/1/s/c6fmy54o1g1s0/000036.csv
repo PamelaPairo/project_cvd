@@ -1,0 +1,3 @@
+"0","ggplot (df %>% filter (ap_hi >= 90 & ap_hi <= 190,       "
+"0","               ap_lo >= 40 & ap_lo <= 150,       "
+"0","               ap_hi > ap_lo), aes(x=ap_hi))+geom_histogram(binwidth = 10)"
