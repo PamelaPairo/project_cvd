@@ -1,0 +1,2 @@
+"0","ggplot(df %>% filter (weight > 35), aes(x=weight)) +"
+"0","  geom_boxplot()"

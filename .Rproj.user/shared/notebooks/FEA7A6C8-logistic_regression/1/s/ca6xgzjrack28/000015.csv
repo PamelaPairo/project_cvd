@@ -1,0 +1,7 @@
+"0","# modelo de regresión logística "
+"0","glm1 <- glm(data = train_sc,"
+"0","            cardio ~ ., "
+"0","            family = 'binomial')"
+"0",""
+"0","# veo los resultados"
+"0","tidy(glm1)"

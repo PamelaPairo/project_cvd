@@ -1,0 +1,4 @@
+"0","df_clean %>%"
+"0","  group_by(cardio) %>%"
+"0","  summarise(cnt = n()) %>%"
+"0","  mutate(freq = round(cnt / sum(cnt), 2))"

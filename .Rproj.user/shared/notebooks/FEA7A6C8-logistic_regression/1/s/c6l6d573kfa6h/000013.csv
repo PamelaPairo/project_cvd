@@ -1,0 +1,4 @@
+"0","library(RCurl)"
+"0","x <- getURL(""https://raw.githubusercontent.com/eea-uba/EEA-2025/refs/heads/main/clase%209/cardio_train.csv"")"
+"0","df <- read.csv(text = x, sep = "";"")"
+"0","df"

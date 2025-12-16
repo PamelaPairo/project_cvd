@@ -1,0 +1,4 @@
+"0","train_sc <- train  %>% "
+"0","    mutate("
+"0","    across(where(is.numeric), ~ scale(.)[,1])"
+"0","  )"
