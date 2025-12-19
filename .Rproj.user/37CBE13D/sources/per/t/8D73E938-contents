@@ -1,0 +1,274 @@
+---
+title: "Logistic Regression"
+author: "Pamela Eugenia Pairo"
+lang: en
+format:
+  html:
+    theme: flatly
+    code-fold: show
+    code-tools: true
+    toc: true
+    toc-location: left
+---
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+
+# import libraries
+library(tidyverse)
+library(tidymodels)
+library(modelr)
+library(GGally)
+library(pROC)
+library(cowplot)
+library(OneR)
+library(rlang)
+library(caret)
+library(RCurl)
+
+set.seed(15)
+```
+
+# Summary
+
+In this project I built and evaluated logistic regression models to predict the presence of cardiovascular disease based on patient exam data. I demonstrated the full modelling workflow: data cleaning, train/test split, feature conversion, model fitting, interpretation, threshold tuning, and evaluation using ROC/AUC & Hosmer-Lemeshow.
+
+# Presentation of the case study
+
+I worked with a database extracted from [Kaggle](https://www.kaggle.com/code/robinreni/cardiovascular-disease-eda-detailed/notebook). It is a database consisting of 69,301 patient records for which 12 characteristics associated with cardiovascular disease were recorded.
+
+The aim of this notebook is to use different logistic regression models to predict the presence or absence of cardiovascular disease (CVD) using the results of the patient's examination.
+
+**Data description**
+
+- Age: age of each patient (days)
+- Height: height of the patient (cm)
+- Weight: weight of the patient (kg)
+- Gender: biological sex of the patient (1: female, 2: male)
+- Systolic blood pressure: Systolic blood pressure
+- Diastolic blood pressure: Diastolic blood pressure
+- Cholesterol: patient's blood cholesterol (1: normal, 2: above normal, 3: very above normal)
+- Glucose: glucose (1: normal, 2: above normal, 3: very above normal)
+- Smoking: 1: smoke, 0: no smoke
+- Alcohol intake: 1: alcohol intake, 0: no alcohol intake
+- Physical activity: 1: active, 0: no active
+- Cardiovascular disease: target variable (0:no, 1:yes)
+
+# Exploratory analysis
+
+```{r}
+#import  dataset
+
+x <- getURL("https://raw.githubusercontent.com/eea-uba/EEA-2025/refs/heads/main/clase%209/cardio_train.csv")
+
+df <- read.csv(text = x, sep = ";")
+df
+```
+```{r}
+# Checking any missing values
+colSums(is.na(df))
+```
+
+```{r}
+# Checking for any duplicate values in dataset
+sum(duplicated(df))
+```
+
+```{r}
+glimpse(df)
+```
+
+```{r}
+df$gender<- as.factor(df$gender)
+```
+
+## Age
+
+I changed the unit of the variable to years.
+
+```{r}
+ df <- df %>%
+  mutate(age_years = round( age / 365, digits=0))
+```
+
+```{r}
+p <- ggplot(df, aes(x=age_years)) + geom_histogram(color="black", fill="white",bins = 20)
+p+ geom_vline(aes(xintercept=mean(age_years)),
+            color="red", linetype="dashed", size=1)
+```
+
+```{r}
+ggplot(df, aes(x=age_years, color=gender)) +
+  geom_histogram(fill="white",position="dodge", bins=20)+
+  theme(legend.position="top")
+```
+
+## Gender
+
+```{r}
+ pie_data <- df %>%
+      count(gender) %>%
+      mutate(percentage = n / sum(n))
+
+ggplot(pie_data, aes(x = "", y = percentage, fill = gender)) +
+  geom_col(width = 1, color = "white") + 
+  coord_polar("y", start = 0) + 
+  theme_void() + 
+  geom_text(aes(label = scales::percent(percentage)),
+            position = position_stack(vjust = 0.5),
+            color = "black") + 
+  labs(title = "Distribution of Gender")
+```
+
+## Height
+
+Several implausible height values (below 1 meter) were detected, likely due to data recording errors. To ensure data quality and analytical validity, these observations were excluded from the dataset.
+
+```{r}
+df %>% filter (height > 100 & height < 200)
+```
+
+
+```{r}
+ggplot(df %>% filter (height > 100 & height < 200), aes(x=height)) +
+  geom_boxplot()
+```
+
+## Diastolic and Sistolic Blood Pressure
+
+Additionally, several issues were identified in the blood pressure variables. The systolic blood pressure variable contained negative values as well as extreme measurements that are not compatible with human life. Since it was not possible to verify how these measurements were recorded, such observations were treated as data entry errors and removed from the dataset.
+
+Based on clinical plausibility criteria, blood pressure values outside physiologically realistic ranges were excluded from the analysis:
+
+Systolic blood pressure: values below 90 mmHg or above 190 mmHg.
+
+Diastolic blood pressure: values below 40 mmHg or above 150 mmHg.
+
+In addition, a physiological consistency check was applied to ensure that systolic blood pressure was greater than diastolic blood pressure. Records violating this condition were also excluded.
+
+The observations removed as a result of these criteria are presented below.
+
+```{r}
+df %>% filter (ap_hi > 190 | ap_hi < 90 | ap_lo > 150 | ap_lo < 40)
+```
+
+
+```{r}
+ggplot (df %>% filter (ap_hi >= 90 & ap_hi <= 190,       
+               ap_lo >= 40 & ap_lo <= 150,       
+               ap_hi > ap_lo), aes(x=ap_hi))+geom_histogram(binwidth = 10)
+```
+
+
+## Weight
+
+Consistent with the findings for `height` , `weight` contained implausible values. Joint inspection of height and weight revealed observations corresponding to individuals taller than 1.6 meters with body weights below 45 kg, a combination indicative of severe malnutrition. Given the study focus on cardiovascular disease detection, such cases were considered outside the target population and were removed from the dataset.
+
+```{r}
+ggplot(df %>% filter (weight > 35), aes(x=weight)) +
+  geom_boxplot()
+```
+
+```{r}
+df %>% filter (weight <35)
+```
+
+## Final dataset
+
+Finally, the final dataset is obtained, which will be used from now on, assesing different logistic regression models.
+
+```{r}
+
+df_clean <- df %>%
+  filter(
+    height > 100 & height < 200,      # keep only physiologically plausible height values (in cm)
+    
+    ap_hi >= 90 & ap_hi <= 190,       # keep systolic blood pressure within realistic clinical range
+    ap_lo >= 40 & ap_lo <= 150,       # keep diastolic blood pressure within realistic clinical range
+    
+    ap_hi > ap_lo,                    # ensure systolic pressure is greater than diastolic pressure (physiological rule)
+    
+    weight > 40                       # keep only plausible patient weight values (in kg)
+  ) %>% 
+  select(-id, -age)
+
+df_clean$cholesterol <- as.factor(df_clean$cholesterol)
+df_clean$gluc <- as.factor(df_clean$gluc)
+df_clean$smoke <- as.factor(df_clean$smoke)
+df_clean$alco <- as.factor(df_clean$alco)
+df_clean$active <- as.factor(df_clean$active)
+df_clean$cardio <- as.factor(df_clean$cardio)
+
+```
+
+
+### Analysis of class imbalance
+
+First, it is important to assess if the response variable is imbalance.
+As it is show below, `cardio` has 2 classes which are balanced.
+
+```{r}
+df_clean %>%
+  group_by(cardio) %>%
+  summarise(cnt = n()) %>%
+  mutate(freq = round(cnt / sum(cnt), 2))
+```
+
+## Split the dataset
+
+```{r}
+df_split <- initial_split(df_clean,
+                          prop = 0.8)
+
+train<- df_split %>%
+              training()
+
+test <- df_split %>%
+              testing()
+
+```
+
+```{r}
+# calculamos la distribución de clase en cada dataset
+train_ <- train %>% 
+  group_by(cardio) %>% 
+  summarise(numero_casos=n()) %>%
+  mutate(prop = round(prop.table(numero_casos)*100,2))
+test_ <- test %>% 
+  group_by(cardio) %>% 
+  summarise(numero_casos=n()) %>%
+  mutate(prop = round(prop.table(numero_casos)*100,2))
+# armamos tabla conjunta para graficar
+distrib = cbind(rbind(train_, test_), dataset = c("train", "train", "test", "test"))
+
+# graficamos las distribuciones
+ggplot(distrib, aes(x = cardio, y = prop, fill = factor(cardio), label = prop)) + 
+         geom_bar(stat="identity", position = "dodge") + facet_wrap(~ dataset) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = "", y = "Proporción en %", title = "Proporción de cardio por dataset") + 
+  guides(fill=guide_legend(title="cardio"))+
+  theme_bw() +
+  scale_fill_brewer(palette="Set2")
+```
+
+```{r}
+train_sc <- train  %>% 
+    mutate(
+    across(where(is.numeric), ~ scale(.)[,1])
+  )
+```
+
+```{r}
+# modelo de regresión logística 
+glm1 <- glm(data = train_sc,
+            cardio ~ ., 
+            family = 'binomial')
+
+# veo los resultados
+tidy(glm1)
+```
+
+```{r}
+1 - (glm1$deviance / glm1$null.deviance)
+```
+

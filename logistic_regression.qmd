@@ -173,7 +173,9 @@ ggplot(df %>% filter (weight > 35), aes(x=weight)) +
 df %>% filter (weight <35)
 ```
 
-## Base de datos final
+## Final dataset
+
+Finally, the final dataset is obtained, which will be used from now on, assesing different logistic regression models.
 
 ```{r}
 
@@ -201,6 +203,9 @@ df_clean$cardio <- as.factor(df_clean$cardio)
 
 
 ### Analysis of class imbalance
+
+First, it is important to assess if the response variable is imbalance.
+As it is show below, `cardio` has 2 classes which are balanced.
 
 ```{r}
 df_clean %>%
